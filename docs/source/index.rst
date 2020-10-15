@@ -10,7 +10,8 @@ Welcome to Sphinx Test's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-
+.. autopgsql::
+   :sqlsource: ../../SQL
 
 Indices and tables
 ==================
