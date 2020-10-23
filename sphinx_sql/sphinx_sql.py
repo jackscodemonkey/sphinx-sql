@@ -35,8 +35,9 @@ class SqlDirective(Directive):
         'comments': {
             'parameters': '(?s)(?<=parameters:)(.*?)(?=return:)',
             'return_type': 'Return:(.?\w.*)',
-            'purpose': '(?s)(?<=purpose:)(.*?)(?=dependent objects:)',
-            'dependancies': '(?s)(?<=depends:)(.*?)(?=changelog:)',
+            #'purpose': '(?s)(?<=purpose:)(.*?)(?=dependent objects:)',
+            'purpose': '(?s)(?<=purpose:)(.*?)((?=dependent objects:)|(?=\*/))',
+            'dependancies': '(?s)(?<=objects:)(.*?)(?=changelog:)',
             'changelog': '(?s)(?<=changelog:)(.*?)(?=\*)',
         }
     }
@@ -55,7 +56,7 @@ class SqlDirective(Directive):
         regex_strings.top_sql_block_comments, re.IGNORECASE | re.MULTILINE)
 
     # Complie Comment Regex
-    #objname = re.compile(regex_strings.comments.name, re.IGNORECASE|re.MULTILINE)
+    # objname = re.compile(regex_strings.comments.name, re.IGNORECASE|re.MULTILINE)
     objpara = re.compile(regex_strings.comments.parameters,
                          re.IGNORECASE | re.MULTILINE)
     objreturn = re.compile(
@@ -115,17 +116,16 @@ class SqlDirective(Directive):
                          [0].strip('[]')).splitlines()
             obj_comment['param'] = self.split_to_list(sparam)
         if self.objreturn.findall(str_comment):
-            obj_comment['return'] = str(
+            obj_comment['return_type'] = str(
                 self.objreturn.findall(str_comment)[0]).lower().strip()
         if self.objpurpose.findall(str_comment):
             obj_comment['purpose'] = str(
-                self.objpurpose.findall(str_comment)[0]).strip()
+                self.objpurpose.findall(str_comment)[0][0]).strip()
         if self.objdepen.findall(str_comment):
-            obj_comment['dependancies'] = str(
-                self.objdepen.findall(str_comment)).lower().strip()
+            sod = str(self.objdepen.findall(str_comment)[0].strip('[]')).splitlines()
+            obj_comment['dependancies'] = self.split_to_list(sod)
         if self.objchange.findall(str_comment):
-            scl = str(self.objchange.findall(str_comment)
-                      [0].strip('[]')).splitlines()
+            scl = str(self.objchange.findall(str_comment)[0].strip('[]')).splitlines()
             obj_comment['changelog'] = self.split_to_list(scl)
 
         return obj_comment
@@ -143,27 +143,80 @@ class SqlDirective(Directive):
             if line:
                 yield line
 
+    def convert_string_to_markup(self, s):
+        ns = str(s).replace('\t', '    ')
+        return ns
+
+    def build_table(self, tabledata):
+        table = n.table()
+        tgroup = n.tgroup()
+        tbody = n.tbody()
+
+        for _ in range(len(tabledata[0])):
+            colspec = n.colspec(colwidth=1)
+            tgroup += colspec
+
+        for row in tabledata:
+            r = n.row()
+            for cell in row:
+                entry = n.entry()
+                entry += n.Text(cell)
+                r += entry
+            tbody += r
+        tgroup += tbody
+        table += tgroup
+        return table
+
+    def build_table_row(self, rowdata):
+        row = n.row()
+        for cell in rowdata:
+            entry = n.entry()
+            row.append(entry)
+            entry.append(cell)
+        return row
+
+    def extract_purpose(self, comments):
+            # Purpose block
+            lb = n.literal_block()
+            purpose = self.convert_string_to_markup(comments.purpose)
+            t = n.Text(purpose, purpose)
+            lb += t
+            return lb
+
     def build_docutil_node(self, core_text):
         section = n.section(ids=n.make_id(core_text.name))
         section += n.title(core_text.name, core_text.name)
-        section += n.subtitle("Object Type: " + core_text.type, "Object Type: " + core_text.type)
+        section += n.line("Object Type: {}".format(core_text.type),
+                          "Object Type: {}".format(core_text.type))
+        section += n.line("", "")
 
         if core_text.type == 'FUNCTION':
-            # fields = n.field_list()
-            # field_name = n.field_name(text='Purpose')
-            # field_body = n.field_body()
-            # field_body.append(n.paragraph(str(core_text.comments.purpose).splitlines()))
-            # field = n.field('', field_name, field_body)
-            # fields += field
-            # section += fields
+            section += n.line("Returns: {}".format(core_text.comments.return_type),
+                              "Returns: {}".format(core_text.comments.return_type))
 
-            para = n.paragraph()
-            purpose = (
-                str(core_text.comments.purpose)
-            )
-            para = n.Text(purpose,purpose)
+            # Parameters block
+            section += n.line("Parameters:","Parameters:")
+            ptable = self.build_table(core_text.comments.param)
+            section += ptable
 
-            section += para
+            # Purpose block
+            section += n.line("Purpose:", "Purpose:")
+            lb = self.extract_purpose(core_text.comments)
+            section += lb
+
+            section += n.line("Dependant Objects:", "Dependant Objects:")
+            dtable = self.build_table(core_text.comments.dependancies)
+            section += dtable
+
+            section += n.line("Change Log:", "Change Log:")
+            ctable = self.build_table(core_text.comments.changelog)
+            section += ctable
+
+        if core_text.type == "TABLE":
+            # Purpose block
+            section += n.line("Purpose:", "Purpose:")
+            lb = self.extract_purpose(core_text.comments)
+            section += lb
 
         return section
 
