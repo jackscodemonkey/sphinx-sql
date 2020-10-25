@@ -8,10 +8,10 @@ Welcome to Sphinx Test's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Navigation:
 
-.. autosql::
-   :sqlsource: ../../SQL
+   autosql
+
 
 Indices and tables
 ==================

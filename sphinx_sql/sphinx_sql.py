@@ -1,8 +1,10 @@
 from . import __version__
 from pathlib import Path
 from types import SimpleNamespace
+from collections import defaultdict
 import re
 import json
+from operator import itemgetter
 
 import docutils.nodes as n
 from docutils.parsers.rst import Directive, directives
@@ -25,17 +27,17 @@ class SqlDirective(Directive):
         # Full comment block
         'top_sql_block_comments': '(?s)/\*.*?\*/',
         # Match Group 2 for Object Type, Group 3 for Object Name
-        'object': '^(create\s*or\s*replace\s*|create\s*)(\w*)\s*((\w*)\.(\w*)|(\w*))',
+        #'object': '^(create\s*or\s*replace\s*|create\s*|create\s*external\s*)(\w*)\s*((\w*)\.(\w*)|(\w*))',
+        'object': '(?<=create)(.*?)((\w*)\.(\w*))',
         # Match Group 2 for distribution key, comma seperated for multiple keys
-        'distributed_by': 'distributed by \((.*)\)',
+        'distributed_by': 'distributed by \(.*?\)',
         # Match Group 2 for partition type (range) Group 3 for parition key.
-        'partition_by': '(partition by )(\w*.)\((\w*)\)',
+        'partition_by': 'partition by \(.*?\)',
         # Match Group 1 for language
-        'language': 'language (.*)\;',
+        'language': '(language .*?)\;',
         'comments': {
             'parameters': '(?s)(?<=parameters:)(.*?)(?=return:)',
             'return_type': 'Return:(.?\w.*)',
-            #'purpose': '(?s)(?<=purpose:)(.*?)(?=dependent objects:)',
             'purpose': '(?s)(?<=purpose:)(.*?)((?=dependent objects:)|(?=\*/))',
             'dependancies': '(?s)(?<=objects:)(.*?)(?=changelog:)',
             'changelog': '(?s)(?<=changelog:)(.*?)(?=\*)',
@@ -85,15 +87,15 @@ class SqlDirective(Directive):
                 sql_type = self.obj.findall(contents)[0]
 
             if sql_type[1]:
-                object_details['type'] = str(sql_type[1]).upper().strip()
-                object_details['name'] = str(sql_type[2]).lower().strip()
+                object_details['type'] = str(sql_type[0]).upper().replace('OR REPLACE','').strip()
+                object_details['name'] = str(sql_type[1]).lower().strip()
                 if object_details['type'] == 'TABLE':
-                    dist = str(self.objdist.findall(contents)).strip('[]')
-                    part = str(self.objpart.findall(contents)).strip('[]')
+                    dist = self.objdist.findall(contents)
+                    part = self.objpart.findall(contents)
                     object_details['distribution_key'] = dist
                     object_details['partition_key'] = part
                 elif object_details['type'] == 'FUNCTION':
-                    lang = str(self.objlang.findall(contents)).strip('[]')
+                    lang = self.objlang.findall(contents)
                     object_details['language'] = lang
 
                 if self.top_comments.findall(contents):
@@ -147,7 +149,7 @@ class SqlDirective(Directive):
         ns = str(s).replace('\t', '    ')
         return ns
 
-    def build_table(self, tabledata):
+    def build_table(self, tabledata, is_dependant=False):
         table = n.table()
         tgroup = n.tgroup()
         tbody = n.tbody()
@@ -156,11 +158,17 @@ class SqlDirective(Directive):
             colspec = n.colspec(colwidth=1)
             tgroup += colspec
 
-        for row in tabledata:
+        for tidx, row in enumerate(tabledata):
             r = n.row()
-            for cell in row:
+            for cidx, cell in enumerate(row):
                 entry = n.entry()
-                entry += n.Text(cell)
+                if is_dependant and tidx > 0 and cidx==1:
+                    para = n.paragraph()
+                    entry += para
+                    para += n.reference(cell, cell, refuri='#{}'.format(n.make_id(cell)))
+                else:
+                    entry += n.Text(cell)
+
                 r += entry
             tbody += r
         tgroup += tbody
@@ -184,54 +192,85 @@ class SqlDirective(Directive):
             return lb
 
     def build_docutil_node(self, core_text):
-        section = n.section(ids=n.make_id(core_text.name))
+        section = n.section(ids=[n.make_id(core_text.name)])
         section += n.title(core_text.name, core_text.name)
-        section += n.line("Object Type: {}".format(core_text.type),
-                          "Object Type: {}".format(core_text.type))
-        section += n.line("", "")
+        section += n.line("OBJECT TYPE: {}".format(core_text.type),
+                          "OBJECT TYPE: {}".format(core_text.type))
 
         if core_text.type == 'FUNCTION':
-            section += n.line("Returns: {}".format(core_text.comments.return_type),
-                              "Returns: {}".format(core_text.comments.return_type))
+            section += n.line("RETURNS: {}".format(core_text.comments.return_type),
+                              "RETURNS: {}".format(core_text.comments.return_type))
+
+            if hasattr(core_text, 'language') and len(core_text.language) > 0:
+                section += n.line(core_text.language[0],core_text.language[0])
 
             # Parameters block
-            section += n.line("Parameters:","Parameters:")
-            ptable = self.build_table(core_text.comments.param)
-            section += ptable
-
-            # Purpose block
-            section += n.line("Purpose:", "Purpose:")
-            lb = self.extract_purpose(core_text.comments)
-            section += lb
-
-            section += n.line("Dependant Objects:", "Dependant Objects:")
-            dtable = self.build_table(core_text.comments.dependancies)
-            section += dtable
-
-            section += n.line("Change Log:", "Change Log:")
-            ctable = self.build_table(core_text.comments.changelog)
-            section += ctable
+            section += n.line("","")
+            section += n.line("PARAMETERS:","PARAMETERS:")
+            if len(core_text.comments.param) > 1:
+                ptable = self.build_table(core_text.comments.param)
+                section += ptable
+            else:
+                section += n.line("None","None")
+                section += n.line("","")
 
         if core_text.type == "TABLE":
+            if hasattr(core_text, 'distribution_key') and len(core_text.distribution_key) > 0:
+                section += n.line(core_text.distribution_key[0],core_text.distribution_key[0])
+            if hasattr(core_text, 'partition_key') and len(core_text.partition_key) >0:
+                section += n.line(core_text.partition_key[0],core_text.partition_key[0])
+
+        if hasattr(core_text.comments, 'purpose'):
             # Purpose block
-            section += n.line("Purpose:", "Purpose:")
+            section += n.line("","")
+            section += n.line("PURPOSE:", "PURPOSE:")
             lb = self.extract_purpose(core_text.comments)
             section += lb
+
+        if hasattr(core_text.comments, 'dependancies'):
+            section += n.line("DEPENDANT OBJECTS:", "DEPENDANT OBJECTS:")
+            dtable = self.build_table(core_text.comments.dependancies, True)
+            section += dtable
+
+        if hasattr(core_text.comments, 'changelog'):
+            section += n.line("CHANGE LOG:", "CHANGE LOG:")
+            ctable = self.build_table(core_text.comments.changelog)
+            section += ctable
 
         return section
 
     def run(self):
         sections = []
+        doc_cores = []
         sql_argument = self.options['sqlsource']
         srcdir = self.get_sql_dir(sqlsrc=sql_argument)
         sql_files = self.get_sql_files(srcpath=srcdir)
-        for file in sql_files:
-            logger.info("File: {}".format(file))
-            core = self.extract_core_text(file)
-            section = self.build_docutil_node(core)
-            sections.append(section)
-        return sections
 
+        # Extract doc strings from source files
+        for file in sql_files:
+            logger.debug("File: {}".format(file))
+            core = self.extract_core_text(file)
+            doc_cores.append(core)
+
+        # Sort docs into SQL object type and alphabetic object name
+        sorted_cores = sorted(doc_cores, key=lambda x: (x.type,x.name))
+
+        # Extract docutil nodes into lists of SQL object type
+        section_types = defaultdict(list)
+        for core in sorted_cores:
+            section = self.build_docutil_node(core)
+            section_types[core.type].append(section)
+        # Create high level object type node and append child nodes from above
+        for stype in section_types:
+            top_section = n.section(ids=[n.make_id(stype)])
+            top_section += n.title(stype, stype)
+
+            for section in section_types[stype]:
+                top_section += section
+
+            # Append to master node list for return
+            sections.append(top_section)
+        return sections
 
 def setup(app):
     app.add_directive("autosql", SqlDirective)
