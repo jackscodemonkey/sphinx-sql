@@ -12,12 +12,12 @@
 #
 #import os
 #import sys
-#sys.path.insert(0, os.path.abspath('../'))
+#sys.path.insert(0, os.path.abspath('../../'))
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'Sphinx Test'
+project = 'Sphinx-SQL'
 copyright = '2020, Marcus Robb'
 author = 'Marcus Robb'
 
@@ -56,4 +56,4 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-html_css_files = ['custom.css']
+#html_css_files = ['custom.css']

@@ -1,0 +1,126 @@
+Introduction
+^^^^^^^^^^^^
+
+sphinx-sql is a Sphinx documentation extension for building documentation from SQL source files.
+
+| * Do you live in a bottomless pit of dispair with "Living documents" in Sharepoint.
+| * Have you had to troubleshoot a problem and someone has reorganized the documentation tree in Sharepoint?
+| * Has your company let PMs loose on projects with no idea how to version documentation, so now you have copies of entire doc trees in Sharepoint?
+|
+| * Do you work on a database first development project?
+| * Do you look at auto documentation packages and cry siliently because no one cares about DB first development?
+| * Don't you wish you could maintain your project documentation with your code base, so you can check out and build the documents anytime you need them?
+
+Having found nothing in the while that could help solve the db first problem, I've written sphinx-sql.
+
+| The goal of sphinx-sql is to provide an autodoc type module for database first development.
+| With a bit of standarization of comments in the top of the sql source files, we can maintain documentation that follows the code base.
+
+This implimentation is tested against Greenplum / Postgres, those are the databases I work with on a daily basis.
+If you want to extend functionality, have a quick look at the contrib section of this document.
+
+Installation
+^^^^^^^^^^^^
+
+Install from PyPI:
+
+.. code-block:: bash
+
+    pip install sphinx-sql
+
+Configuration
+^^^^^^^^^^^^^
+
+Configuring Sphinx
+==================
+
+In your conf.py for Sphinx enable the extension:
+
+.. code-block:: python
+
+    extensions = [
+    'sphinx_sql.sphinx_sql',
+    ]
+
+Configure toctree
+=================
+
+Create a new rst file (we'll call it autosql.rst) and include it in your toc-tree.
+
+.. code-block:: RST
+
+   .. toctree::
+   :maxdepth: 2
+   :caption: Navigation:
+
+   autosql
+
+Configure rst
+=============
+
+Add the directive with a relative path from your document build folder to the root of your SQL source in the autosql.rst file.
+
+.. code-block:: RST
+
+    SQL Documentation
+    ^^^^^^^^^^^^^^^^^
+
+    .. autosql::
+        :sqlsource: ../../SQL
+
+Add SQL Comments
+================
+
+| sphinx-sql recursively looks for all .sql files under the configured sqlource path.
+| It will extract the first block comment out of each file as well as important
+| object creatation lines such as CREATE TABLE / VIEW  / FUNCTION / LANGUAGE etc.
+|
+| Comments should adhear to the following formats, otherwise the regex searches will not find the appropriate blocks
+| Pipe delimiters are used in Parameters, Dependent Objects and Change Log files to create table rows in the documents, spaces don't matter;
+| everything else is free form text and should appear as you write it.
+
+**Key word groups:**
+
+| Parameters:
+| Return:
+| Purpose:
+| Dependent Objects:
+| ChangeLog:
+
+**Functions:**
+
+.. code-block:: SQL
+
+   /*
+    Parameters:
+    Name | Type | Description
+
+    Return: Void
+    Purpose:
+    Detailed explanation of the function which includes:
+            - Function business logic
+            - Transformation rules
+            - Here is a bit more text.
+    Dependent Objects:
+        Type    |Name
+        Table   |schema_name.source_table5
+        View    |schema_name.target_table6
+    ChangeLog:
+        Date   |     Author      |    Ticket | Modification
+	    YYYY-MM-DD |	Developer name |	T-223 | Short Modification details or some really long text that will continue on.
+    */
+
+**Everything else (TABLES/VIEWS/etc):**
+
+.. code-block:: SQL
+
+    /*
+    Purpose:
+    This a new view to show how auto documentation can add new obejcts quickly.
+    Dependent Objects:
+        Type    |Name
+        Table   |schema1.ext_table
+    ChangeLog:
+        Date    |    Author    |    Ticket    |    Modification
+        2020-10-26    |  Developer_2  |   T-220    |    Initial Definition
+    */

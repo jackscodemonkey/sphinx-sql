@@ -3,7 +3,7 @@ from sphinx_sql import __version__, __release__
 from sphinx.setup_command import BuildDoc
 cmdclass = {'build_sphinx': BuildDoc}
 
-with open('README.md') as file:
+with open('README.rst') as file:
     long_description = file.read()
 
 version = __version__
