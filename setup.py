@@ -26,7 +26,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/x-rst",
     install_requires=[
-        'Sphinx',
+        'sphinx',
         'sphinx_rtd_theme'
     ],
     include_package_data=True,
