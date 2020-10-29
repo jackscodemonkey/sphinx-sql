@@ -24,6 +24,7 @@ setup(
     author='Marcus Robb',
     description="Sphinx extension for autodoc of SQL files.",
     long_description=long_description,
+    long_description_content_type="text/rst",
     install_requires=[
         'Sphinx',
         'sphinx_rtd_theme'
