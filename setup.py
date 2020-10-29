@@ -19,7 +19,7 @@ setup(
     name=name,
     version=release,
     packages=find_packages(),
-    url='',
+    url='https://github.com/jackscodemonkey/sphinx-sql',
     license='MIT',
     author='Marcus Robb',
     description="Sphinx extension for autodoc of SQL files.",
