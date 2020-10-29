@@ -1,7 +1,12 @@
 from setuptools import setup, find_packages
 from sphinx_sql import __version__, __release__
-from sphinx.setup_command import BuildDoc
-cmdclass = {'build_sphinx': BuildDoc}
+
+cmdclass = {}
+try:
+    from sphinx.setup_command import BuildDoc
+    cmdclass['build_sphinx'] = BuildDoc
+except ImportError:
+    print("Warning: sphinx is not available, not building docs.")
 
 with open('README.rst') as file:
     long_description = file.read()
@@ -20,7 +25,8 @@ setup(
     description="Sphinx extension for autodoc of SQL files.",
     long_description=long_description,
     install_requires=[
-        'Sphinx'
+        'Sphinx',
+        'sphinx_rtd_theme'
     ],
     include_package_data=True,
     cmdclass=cmdclass,
