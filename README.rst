@@ -77,7 +77,7 @@ Add SQL Comments
 |
 | Comments should adhear to the following formats, otherwise the regex searches will not find the appropriate blocks
 | Pipe delimiters are used in Parameters, Dependent Objects and Change Log files to create table rows in the documents, spaces don't matter;
-| everything else is free form text and should appear as you write it.
+everything else is free form text and should appear as you write it.
 
 **Key word groups:**
 
@@ -86,6 +86,7 @@ Add SQL Comments
 | Purpose:
 | Dependent Objects:
 | ChangeLog:
+
 
 **Functions:**
 
