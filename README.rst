@@ -88,7 +88,7 @@ Add SQL Comments
 | ChangeLog:
 |
 
-**Functions:**
+**FUNCTIONS:**
 
 .. code-block:: SQL
 
@@ -111,7 +111,7 @@ Add SQL Comments
 	    YYYY-MM-DD |	Developer name |	T-223 | Short Modification details or some really long text that will continue on.
     */
 
-**Everything else (TABLES/VIEWS/etc):**
+**TABLES/VIEWS/etc:**
 
 .. code-block:: SQL
 
@@ -121,6 +121,25 @@ Add SQL Comments
     Dependent Objects:
         Type    |Name
         Table   |schema1.ext_table
+    ChangeLog:
+        Date    |    Author    |    Ticket    |    Modification
+        2020-10-26    |  Developer_2  |   T-220    |    Initial Definition
+    */
+
+**DML:**
+
+| Files that are not a SQL object, but you'd like to include in documentation,
+| can be included by providing key information in the top-level comment.
+| Object Name, Object Type are required fields in order to categorize and sort the output.
+
+.. code-block:: SQL
+
+    /*
+    Object Name: <schema.name>
+    Object Type: DML
+    Purpose:
+    This a new view to show how auto documentation can add new obejcts quickly.
+
     ChangeLog:
         Date    |    Author    |    Ticket    |    Modification
         2020-10-26    |  Developer_2  |   T-220    |    Initial Definition

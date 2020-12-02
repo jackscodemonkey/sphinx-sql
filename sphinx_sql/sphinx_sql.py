@@ -23,6 +23,7 @@ class SqlDirective(Directive):
     option_spec = {'sqlsource': directives.unchanged}
 
     # Most of these regex strings should be case insesitive lookups
+    closing_regex = '((?=return:)|(?=purpose:)|(?=dependent objects:)|(?=changelog:)|(?=parameters)|(?=\*/))'
     regex_dict = {
         # Full comment block
         'top_sql_block_comments': '(?s)/\*.*?\*/',
@@ -36,11 +37,18 @@ class SqlDirective(Directive):
         # Match Group 1 for language
         'language': '(language .*?)\;',
         'comments': {
-            'parameters': '(?s)(?<=parameters:)(.*?)(?=return:)',
+            'object_name': '(?<=Object Name:)(\s\S*)',
+            'object_type': '(?<=Object Type:)(\s\S*)',
+            #'parameters': '(?s)(?<=parameters:)(.*?)(?=return:)',
+            #'return_type': 'Return:(.?\w.*)',
+            #'purpose': '(?s)(?<=purpose:)(.*?)((?=dependent objects:)|(?=\*/))',
+            #'dependancies': '(?s)(?<=objects:)(.*?)(?=changelog:)',
+            #changelog': '(?s)(?<=changelog:)(.*?)(?=\*)',
+            'parameters': f'(?s)(?<=parameters:)(.*?){closing_regex}',
             'return_type': 'Return:(.?\w.*)',
-            'purpose': '(?s)(?<=purpose:)(.*?)((?=dependent objects:)|(?=\*/))',
-            'dependancies': '(?s)(?<=objects:)(.*?)(?=changelog:)',
-            'changelog': '(?s)(?<=changelog:)(.*?)(?=\*)',
+            'purpose': f'(?s)(?<=purpose:)(.*?){closing_regex}',
+            'dependancies': f'(?s)(?<=objects:)(.*?){closing_regex}',
+            'changelog': f'(?s)(?<=changelog:)(.*?){closing_regex}',
         }
     }
 
@@ -58,7 +66,8 @@ class SqlDirective(Directive):
         regex_strings.top_sql_block_comments, re.IGNORECASE | re.MULTILINE)
 
     # Complie Comment Regex
-    # objname = re.compile(regex_strings.comments.name, re.IGNORECASE|re.MULTILINE)
+    objname = re.compile(regex_strings.comments.object_name, re.IGNORECASE | re.MULTILINE)
+    objtype = re.compile(regex_strings.comments.object_type, re.IGNORECASE | re.MULTILINE)
     objpara = re.compile(regex_strings.comments.parameters,
                          re.IGNORECASE | re.MULTILINE)
     objreturn = re.compile(
@@ -81,41 +90,59 @@ class SqlDirective(Directive):
 
     def extract_core_text(self, file):
         with open(file) as f:
+            logger.info(file)
             contents = f.read()
             object_details = {}
             if self.obj.findall(contents):
+                # DDL file
                 sql_type = self.obj.findall(contents)[0]
 
-            if sql_type[1]:
-                object_details['type'] = str(sql_type[0]).upper().replace('OR REPLACE','').strip()
-                object_details['name'] = str(sql_type[1]).lower().strip()
-                if object_details['type'] == 'TABLE':
-                    dist = self.objdist.findall(contents)
-                    part = self.objpart.findall(contents)
-                    object_details['distribution_key'] = dist
-                    object_details['partition_key'] = part
-                elif object_details['type'] == 'FUNCTION':
-                    lang = self.objlang.findall(contents)
-                    object_details['language'] = lang
-
-                if self.top_comments.findall(contents):
-                    comment = self.top_comments.findall(contents)[0]
-                    object_details['comments'] = self.extract_comments(comment)
+                if not sql_type[1]:
+                    logger.warning(
+                        "No top level comments found in file. Not a DML file. Skipping {}".format(file))
+                    return None
                 else:
-                    object_details['comments'] = None
-                object_details = json.loads(json.dumps(
-                    object_details), object_hook=lambda item: SimpleNamespace(**item))
-                return object_details
+
+                    # Read name and type from ANSI92 SQL objects first
+                    object_details['type'] = str(sql_type[0]).upper().replace('OR REPLACE','').strip()
+                    object_details['name'] = str(sql_type[1]).lower().strip()
+
+                    if object_details['type'] == 'TABLE':
+                        dist = self.objdist.findall(contents)
+                        part = self.objpart.findall(contents)
+                        object_details['distribution_key'] = dist
+                        object_details['partition_key'] = part
+                    elif object_details['type'] == 'FUNCTION':
+                        lang = self.objlang.findall(contents)
+                        object_details['language'] = lang
+
+                    if self.top_comments.findall(contents):
+                        comment = self.top_comments.findall(contents)[0]
+                        object_details['comments'] = self.extract_comments(comment)
+                    else:
+                        object_details['comments'] = None
             else:
-                logger.warning(
-                    "No object type found in file. Not a DML file. Skipping {}".format(file))
-                return None
+                # Likely a DML file
+                dml = self.top_comments.findall(contents)[0]
+                if dml:
+                    oname = self.objname.search(str(dml))
+                    otype = self.objtype.search(str(dml))
+                    if not oname or not otype:
+                        return None
+                    else:
+                        object_details['type'] = otype[0].rstrip('\\n').strip().upper()
+                        object_details['name'] = oname[0].rstrip('\\n').strip().lower()
+                        object_details['comments'] = self.extract_comments(str(dml))
+                else:
+                    return None
+        object_details = json.loads(json.dumps(object_details), object_hook=lambda item: SimpleNamespace(**item))
+        return object_details
 
     def extract_comments(self, str_comment):
         obj_comment = {}
         if self.objpara.findall(str_comment):
-            sparam = str(self.objpara.findall(str_comment)
-                         [0].strip('[]')).splitlines()
+            #sparam = str(self.objpara.findall(str_comment)[0].strip('[]')).splitlines()
+            sparam = self.objpara.findall(str_comment)[0]
             obj_comment['param'] = self.split_to_list(sparam)
         if self.objreturn.findall(str_comment):
             obj_comment['return_type'] = str(
@@ -124,18 +151,22 @@ class SqlDirective(Directive):
             obj_comment['purpose'] = str(
                 self.objpurpose.findall(str_comment)[0][0]).strip()
         if self.objdepen.findall(str_comment):
-            sod = str(self.objdepen.findall(str_comment)[0].strip('[]')).splitlines()
+            #sod = str(self.objdepen.findall(str_comment)[0].strip('[]')).splitlines()
+            sod = self.objdepen.findall(str_comment)[0]
             obj_comment['dependancies'] = self.split_to_list(sod)
         if self.objchange.findall(str_comment):
-            scl = str(self.objchange.findall(str_comment)[0].strip('[]')).splitlines()
+            #scl = str(self.objchange.findall(str_comment)[0].strip('[]')).splitlines()
+            scl = self.objchange.findall(str_comment)[0]
             obj_comment['changelog'] = self.split_to_list(scl)
 
         return obj_comment
 
     def split_to_list(self, source):
         slist = []
+        source = ''.join(source)
+        source = [ x.strip() for x in source.splitlines() ]
         for line in self.non_blank_lines(source):
-            sline = [x.strip() for x in line.split('|')]
+            sline = [ x.strip() for x in line.split('|') ]
             slist.append(sline)
         return slist
 
@@ -250,7 +281,11 @@ class SqlDirective(Directive):
         for file in sql_files:
             logger.debug("File: {}".format(file))
             core = self.extract_core_text(file)
-            doc_cores.append(core)
+
+            if not core:
+                logger.warning("Did not find usable sphinx-sql comments in file: {}".format(file))
+            else:
+                doc_cores.append(core)
 
         # Sort docs into SQL object type and alphabetic object name
         sorted_cores = sorted(doc_cores, key=lambda x: (x.type,x.name))
