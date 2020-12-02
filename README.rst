@@ -131,6 +131,7 @@ Add SQL Comments
 | Files that are not a SQL object, but you'd like to include in documentation,
 | can be included by providing key information in the top-level comment.
 | Object Name, Object Type are required fields in order to categorize and sort the output.
+| The remainder of the keywords are valid for use in DML blocks.
 
 .. code-block:: SQL
 
