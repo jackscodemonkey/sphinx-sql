@@ -71,7 +71,7 @@ Add the directive with a relative path from your document build folder to the ro
 Add SQL Comments
 ================
 
-| sphinx-sql recursively looks for all .sql files under the configured sqlource path.
+| sphinx-sql recursively looks for all .sql files under the configured sqlsource path.
 | It will extract the first block comment out of each file as well as important
 | object creatation lines such as CREATE TABLE / VIEW  / FUNCTION / LANGUAGE etc.
 |
