@@ -42,6 +42,14 @@ In your conf.py for Sphinx enable the extension:
     'sphinx_sql.sphinx_sql',
     ]
 
+By default, Table Columns with their metadata (data type, length, precision, scale) are extracted from the DDL.
+You can disable this behavior
+by changing settings in your conf.py:
+
+.. code-block:: python
+
+    sphinxsql_include_table_attributes = False
+
 Configure toctree
 =================
 
@@ -112,6 +120,9 @@ Add SQL Comments
     */
 
 **TABLES/VIEWS/etc:**
+
+You can comment on Table Columns (one-line text, no markups) in your DDL (``COMMENT ON COLUMN``).
+These comments will appear in the "Description" column inside the Attributes Block.
 
 .. code-block:: SQL
 
