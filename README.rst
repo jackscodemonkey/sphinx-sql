@@ -19,6 +19,12 @@ Having found nothing in the while that could help solve the db first problem, I'
 This implementation is tested against Greenplum / Postgres, those are the databases I work with on a daily basis.
 If you want to extend functionality, have a quick look at the contrib section of this document.
 
+*Tip:* If you create your DDL with pgModeler,
+you may want to look into this `simple script`_
+to conveniently generate single DDL files, which can be handled by sphinx-sql.
+
+.. _simple script: https://github.com/winkelband/ddlsplit
+
 Installation
 ^^^^^^^^^^^^
 
