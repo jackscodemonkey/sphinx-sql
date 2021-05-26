@@ -6,6 +6,8 @@ import re
 import json
 from operator import itemgetter
 
+from ddlparse import DdlParse
+
 import docutils.nodes as n
 from docutils.parsers.rst import Directive, directives
 
@@ -15,6 +17,40 @@ from sphinx.environment import BuildEnvironment
 from sphinx.util import logging
 
 logger = logging.getLogger(__name__)
+
+
+class Config:
+    '''Sphinx sphinx-sql extension settings in `conf.py`.
+
+    Attributes
+    ---------
+    sphinxsql_include_table_attributes : :obj:`bool` (Defaults to True)
+        Extract Columns from Tables defined in DDL files.
+    '''
+
+    _config_values = {
+        'sphinxsql_include_table_attributes': (True, 'env'),
+    }
+
+    def __init__(self, **settings):
+        for name, (default, rebuild) in self._config_values.items():
+            setattr(self, name, default)
+        for name, value in settings.items():
+            setattr(self, name, value)
+
+
+# Define SQL Table types
+TABLE_TYPES = [
+    'TABLE',
+    'EXTERNAL TABLE',
+    'FOREIGN TABLE'
+]
+# Define SQL object types consisting of two words
+special_obj_type = [
+    'EXTERNAL',
+    'FOREIGN',
+    'MATERIALIZED',
+]
 
 
 class SqlDirective(Directive):
@@ -27,9 +63,13 @@ class SqlDirective(Directive):
     regex_dict = {
         # Full comment block
         'top_sql_block_comments': '(?s)/\*.*?\*/',
-        # Match Group 2 for Object Type, Group 3 for Object Name
-        #'object': '^(create\s*or\s*replace\s*|create\s*|create\s*external\s*)(\w*)\s*((\w*)\.(\w*)|(\w*))',
-        'object': '(?<=create)(.*?)((\w*)\.(\w*))',
+        # Match Group 1 for Object Type, Group 3 for Object Name
+        # in cluster and catalog objects (e.g. database, role; extension, schema)
+        'object_cluster_catalog': '(?<=create)\s+(\w+)\s*(if not exists)*\s?(\"?[^\s*;]*\"?)\s*',
+        # Match Group 2 (a defined special object type, e.g. "materialized")
+        # and Group 3 for Object Type, Group 5 for Object Name
+        # in schema objects (e.g. table, view, function)
+        'object_schema': f'''(?<=create)\s*(or replace)?\s*({'|'.join(special_obj_type)})?\s*(\w+)\s*(if not exists)*\s?((\w*)\.(\"?[^\s*\(]*\"?))''',
         # Match Group 2 for distribution key, comma seperated for multiple keys
         'distributed_by': 'distributed by \(.*?\)',
         # Match Group 2 for partition type (range) Group 3 for parition key.
@@ -49,14 +89,20 @@ class SqlDirective(Directive):
             'purpose': f'(?s)(?<=purpose:)(.*?){closing_regex}',
             'dependancies': f'(?s)(?<=objects:)(.*?){closing_regex}',
             'changelog': f'(?s)(?<=changelog:)(.*?){closing_regex}',
-        }
+        },
+        # Match Group 1 for Schema, Group 2 for Table Name,
+        # Group 3 for Field Name, Group 4 for Comment on Column
+        'col_comment': '(?<=comment on column)\s*(\w*)\.(\w*)\.(\w*)\s*IS.*\'(.*)\';',
+        # Match complete Constraint part
+        'constraints': '^\s*CONSTRAINT.*\n*.*\),?',
     }
 
     regex_strings = json.loads(json.dumps(
         regex_dict), object_hook=lambda item: SimpleNamespace(**item))
 
     # Compile Top Level Regex
-    obj = re.compile(regex_strings.object, re.IGNORECASE | re.MULTILINE)
+    obj_cluster_catalog = re.compile(regex_strings.object_cluster_catalog, re.IGNORECASE | re.MULTILINE)
+    obj_schema = re.compile(regex_strings.object_schema, re.IGNORECASE | re.MULTILINE)
     objdist = re.compile(regex_strings.distributed_by,
                          re.IGNORECASE | re.MULTILINE)
     objpart = re.compile(regex_strings.partition_by,
@@ -79,6 +125,14 @@ class SqlDirective(Directive):
     objchange = re.compile(regex_strings.comments.changelog,
                            re.IGNORECASE | re.MULTILINE)
 
+    # Complie SQL Comment on Column Regex
+    objcol_comment = re.compile(regex_strings.col_comment,
+                                re.IGNORECASE | re.MULTILINE)
+
+    # Complie SQL Constraint Regex
+    objconstraints = re.compile(regex_strings.constraints,
+                                re.IGNORECASE | re.MULTILINE)
+
     def get_sql_dir(self, sqlsrc):
         env = Path(self.state.document.settings.env.srcdir)
         path = Path.resolve(Path.joinpath(env, sqlsrc))
@@ -88,30 +142,128 @@ class SqlDirective(Directive):
         files = Path(srcpath).rglob('*.sql')
         return files
 
-    def extract_core_text(self, file):
+    def extract_sql_col_comments(self, ddl, schema_name, table_name):
+        '''Return SQL Comment Statements on Columns.
+        Helper function for extract_columns().
+        '''
+
+        col_comments = self.objcol_comment.findall(ddl)
+        table_column_comments = []
+        for col_comment in col_comments:
+            # Check Schema
+            if col_comment[0] == schema_name:
+                # Check Table
+                if col_comment[1] == table_name:
+                    table_column_comments.append(col_comment)
+
+        return table_column_comments
+
+    def extract_columns(self, contents, schema_name, table_name):
+        '''Extract Table Columns and their metadata
+        from DDL code.
+        '''
+
+        # Get DDL and clean content for ddlparse
+        if len(self.top_comments.findall(contents)) > 0:
+            # If Top Level Comment exists
+            top_comments = self.top_comments.findall(contents)[0]
+
+            # Remove Top Level Comment to parse plain DDL
+            ddl = contents.replace(top_comments, '')
+
+            if len(self.objconstraints.findall(ddl)) > 0:
+                # Remove Constraints because Check Constraints
+                # cannot be parsed properly by ddlparse
+                constraints = self.objconstraints.findall(ddl)
+                for constraint in constraints:
+                    ddl = ddl.replace(constraint, '')
+        elif len(self.objconstraints.findall(contents)) > 0:
+            # If no Top Level Comment exists,
+            # but Constraint Statements exist
+            ddl = contents
+            constraints = self.objconstraints.findall(ddl)
+
+            # Remove Constraints because Check Constraints
+            # cannot be parsed properly by ddlparse
+            for constraint in constraints:
+                ddl = ddl.replace(constraint, '')
+        else:
+            # No Top Level Comment, no Constraint Statements
+            ddl = contents
+
+        parser = DdlParse()
+        parser.ddl = ddl
+        table = parser.parse()
+
+        table_column_comments = self.extract_sql_col_comments(
+                ddl,
+                schema_name,
+                table_name
+                )
+
+        # Define header fields for sphinx-table
+        fields = [['Name', 'Type', 'Description']]
+
+        for col in table.columns.values():
+            # Extract column metadata
+            if col.precision and col.scale:
+                data_type = f'{col.data_type}({col.precision},{col.scale})'
+            elif col.length:
+                data_type = f'{col.data_type}({col.length})'
+            else:
+                data_type = col.data_type
+
+            if len(table_column_comments) > 0:
+                # Find SQL Comment on current Column
+                for column_comment in table_column_comments:
+                    if col.name == column_comment[2]:
+                        comment = column_comment[3]
+                        break
+                    else:
+                        comment = ''
+            else:
+                comment = ''
+
+            # Build list of rows for sphinx-table
+            field = [col.name.lower(), data_type.lower(), comment]
+            fields.append(field)
+
+        return fields
+
+    def extract_core_text(self, config, file):
         with open(file) as f:
             logger.info(file)
             contents = f.read()
             object_details = {}
-            if self.obj.findall(contents):
-                # DDL file
-                sql_type = self.obj.findall(contents)[0]
-
-                if not sql_type[1]:
-                    logger.warning(
-                        "No top level comments found in file. Not a DML file. Skipping {}".format(file))
-                    return None
-                else:
-
+            if self.obj_schema.findall(contents):
+                sql_type_schema = self.obj_schema.findall(contents)[0]
+                sql_type = (f'{sql_type_schema[1]} {sql_type_schema[2]}', sql_type_schema[4], sql_type_schema[5], sql_type_schema[6])
+            elif self.obj_cluster_catalog.findall(contents):
+                sql_type_cluster_catalog = self.obj_cluster_catalog.findall(contents)[0]
+                # Create a tuple matching to length of obj_schema
+                sql_type = (sql_type_cluster_catalog[0], sql_type_cluster_catalog[2], '', '')
+            try:
+                if 'sql_type' in locals():
+                    # DDL file
                     # Read name and type from ANSI92 SQL objects first
-                    object_details['type'] = str(sql_type[0]).upper().replace('OR REPLACE','').strip()
-                    object_details['name'] = str(sql_type[1]).lower().strip()
+                    object_details['type'] = str(sql_type[0]).upper().strip()
+                    object_details['name'] = str(sql_type[1]).lower().strip().replace('"', '')
 
-                    if object_details['type'] == 'TABLE':
+                    if object_details['type'] in TABLE_TYPES:
                         dist = self.objdist.findall(contents)
                         part = self.objpart.findall(contents)
                         object_details['distribution_key'] = dist
                         object_details['partition_key'] = part
+                        if config.sphinxsql_include_table_attributes:
+                            try:
+                                object_details['cols'] = self.extract_columns(
+                                        contents,
+                                        sql_type[2],
+                                        sql_type[3])
+                            except:
+                                # If no columns can be extracted
+                                object_details['cols'] = []
+
                     elif object_details['type'] == 'FUNCTION':
                         lang = self.objlang.findall(contents)
                         object_details['language'] = lang
@@ -121,21 +273,27 @@ class SqlDirective(Directive):
                         object_details['comments'] = self.extract_comments(comment)
                     else:
                         object_details['comments'] = None
-            else:
-                # Likely a DML file
-                dml = self.top_comments.findall(contents)[0]
-                if dml:
-                    oname = self.objname.search(str(dml))
-                    otype = self.objtype.search(str(dml))
-                    if not oname or not otype:
-                        return None
-                    else:
-                        object_details['type'] = otype[0].rstrip('\\n').strip().upper()
-                        object_details['name'] = oname[0].rstrip('\\n').strip().lower()
-                        object_details['comments'] = self.extract_comments(str(dml))
                 else:
-                    return None
+                    # Likely a DML file
+                    dml = self.top_comments.findall(contents)[0]
+                    if dml:
+                        oname = self.objname.search(str(dml))
+                        otype = self.objtype.search(str(dml))
+                        if not oname or not otype:
+                            return None
+                        else:
+                            object_details['type'] = otype[0].rstrip('\\n').strip().upper()
+                            object_details['name'] = oname[0].rstrip('\\n').strip().lower()
+                            object_details['comments'] = self.extract_comments(str(dml))
+                    else:
+                        return None
+            except:
+                logger.warning(
+                    "No top level comments found in file. Not a DML file. Skipping {}".format(file))
+                return None
+
         object_details = json.loads(json.dumps(object_details), object_hook=lambda item: SimpleNamespace(**item))
+
         return object_details
 
     def extract_comments(self, str_comment):
@@ -180,7 +338,7 @@ class SqlDirective(Directive):
         ns = str(s).replace('\t', '    ')
         return ns
 
-    def build_table(self, tabledata, is_dependant=False):
+    def build_table(self, titles, tabledata, is_dependant=False):
         table = n.table()
         tgroup = n.tgroup()
         tbody = n.tbody()
@@ -190,10 +348,13 @@ class SqlDirective(Directive):
             tgroup += colspec
 
         for tidx, row in enumerate(tabledata):
+            header = n.row()
+            for title in titles:
+                header += n.entry('', n.paragraph(text=title))
             r = n.row()
             for cidx, cell in enumerate(row):
                 entry = n.entry()
-                if is_dependant and tidx > 0 and cidx==1:
+                if is_dependant and tidx >= 0 and cidx==1:
                     para = n.paragraph()
                     entry += para
                     para += n.reference(cell, cell, refuri='#{}'.format(n.make_id(cell)))
@@ -202,6 +363,7 @@ class SqlDirective(Directive):
 
                 r += entry
             tbody += r
+        tgroup += n.thead('', header)
         tgroup += tbody
         table += tgroup
         return table
@@ -238,14 +400,18 @@ class SqlDirective(Directive):
             # Parameters block
             section += n.line("","")
             section += n.line("PARAMETERS:","PARAMETERS:")
+            # The first row is treated as table header
             if len(core_text.comments.param) > 1:
-                ptable = self.build_table(core_text.comments.param)
+                ptable = self.build_table(
+                    core_text.comments.param[0], # table header
+                    core_text.comments.param[1:], # data rows
+                )
                 section += ptable
             else:
                 section += n.line("None","None")
                 section += n.line("","")
 
-        if core_text.type == "TABLE":
+        if core_text.type in TABLE_TYPES:
             if hasattr(core_text, 'distribution_key') and len(core_text.distribution_key) > 0:
                 section += n.line(core_text.distribution_key[0],core_text.distribution_key[0])
             if hasattr(core_text, 'partition_key') and len(core_text.partition_key) >0:
@@ -260,17 +426,41 @@ class SqlDirective(Directive):
 
         if hasattr(core_text.comments, 'dependancies'):
             section += n.line("DEPENDANT OBJECTS:", "DEPENDANT OBJECTS:")
-            dtable = self.build_table(core_text.comments.dependancies, True)
+            # The first row is treated as table header
+            dtable = self.build_table(
+                core_text.comments.dependancies[0], # table header
+                core_text.comments.dependancies[1:], # data rows
+                True
+            )
             section += dtable
+
+        if core_text.type in TABLE_TYPES:
+            if hasattr(core_text, 'cols') and len(core_text.cols) > 0:
+                # Attributes block
+                section += n.line("ATTRIBUTES:", "ATTRIBUTES:")
+                # The first row is treated as table header
+                atable = self.build_table(
+                    core_text.cols[0], # table header
+                    core_text.cols[1:], # data rows
+                )
+                section += atable
 
         if hasattr(core_text.comments, 'changelog'):
             section += n.line("CHANGE LOG:", "CHANGE LOG:")
-            ctable = self.build_table(core_text.comments.changelog)
+            # The first row is treated as table header
+            ctable = self.build_table(
+                core_text.comments.changelog[0], # table header
+                core_text.comments.changelog[1:], # data rows
+            )
             section += ctable
 
         return section
 
     def run(self):
+        # Read configuration variables from BuildEnvironment
+        env = self.state.document.settings.env
+        config = env.config
+
         sections = []
         doc_cores = []
         sql_argument = self.options['sqlsource']
@@ -280,7 +470,7 @@ class SqlDirective(Directive):
         # Extract doc strings from source files
         for file in sql_files:
             logger.debug("File: {}".format(file))
-            core = self.extract_core_text(file)
+            core = self.extract_core_text(config, file)
 
             if not core:
                 logger.warning("Did not find usable sphinx-sql comments in file: {}".format(file))
@@ -309,6 +499,8 @@ class SqlDirective(Directive):
 
 def setup(app):
     app.add_directive("autosql", SqlDirective)
+    for name, (default, rebuild) in Config._config_values.items():
+        app.add_config_value(name, default, rebuild)
     return {
         'version': __version__,
         'parallel_read_safe': True,
