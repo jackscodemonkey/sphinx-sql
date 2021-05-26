@@ -79,11 +79,6 @@ class SqlDirective(Directive):
         'comments': {
             'object_name': '(?<=Object Name:)(\s\S*)',
             'object_type': '(?<=Object Type:)(\s\S*)',
-            #'parameters': '(?s)(?<=parameters:)(.*?)(?=return:)',
-            #'return_type': 'Return:(.?\w.*)',
-            #'purpose': '(?s)(?<=purpose:)(.*?)((?=dependent objects:)|(?=\*/))',
-            #'dependancies': '(?s)(?<=objects:)(.*?)(?=changelog:)',
-            #changelog': '(?s)(?<=changelog:)(.*?)(?=\*)',
             'parameters': f'(?s)(?<=parameters:)(.*?){closing_regex}',
             'return_type': 'Return:(.?\w.*)',
             'purpose': f'(?s)(?<=purpose:)(.*?){closing_regex}',
@@ -402,11 +397,15 @@ class SqlDirective(Directive):
             section += n.line("PARAMETERS:","PARAMETERS:")
             # The first row is treated as table header
             if len(core_text.comments.param) > 1:
-                ptable = self.build_table(
-                    core_text.comments.param[0], # table header
-                    core_text.comments.param[1:], # data rows
-                )
-                section += ptable
+                ptable = ''
+                try:
+                    ptable = self.build_table(
+                        core_text.comments.param[0], # table header
+                        core_text.comments.param[1:], # data rows
+                    )
+                    section += ptable
+                except Exception as e:
+                    logger.warning(f'Unable to parse function parameters from {core_text.name}. Check your .sql source comments for proper formatting!')
             else:
                 section += n.line("None","None")
                 section += n.line("","")
@@ -427,31 +426,43 @@ class SqlDirective(Directive):
         if hasattr(core_text.comments, 'dependancies'):
             section += n.line("DEPENDANT OBJECTS:", "DEPENDANT OBJECTS:")
             # The first row is treated as table header
-            dtable = self.build_table(
-                core_text.comments.dependancies[0], # table header
-                core_text.comments.dependancies[1:], # data rows
-                True
-            )
+            dtable = ''
+            try:
+                dtable = self.build_table(
+                    core_text.comments.dependancies[0], # table header
+                    core_text.comments.dependancies[1:], # data rows
+                    True
+                )
+            except Exception as e:
+                logger.warning(f'Unable to parse dependant objects from {core_text.name}. Check your .sql source comments for proper formatting!')
             section += dtable
 
         if core_text.type in TABLE_TYPES:
             if hasattr(core_text, 'cols') and len(core_text.cols) > 0:
                 # Attributes block
                 section += n.line("ATTRIBUTES:", "ATTRIBUTES:")
+                atable = ''
                 # The first row is treated as table header
-                atable = self.build_table(
-                    core_text.cols[0], # table header
-                    core_text.cols[1:], # data rows
-                )
+                try:
+                    atable = self.build_table(
+                        core_text.cols[0], # table header
+                        core_text.cols[1:], # data rows
+                    )
+                except Exception as e:
+                    logger.warning(f'Unable to parse table attributes from {core_text.name}. Check your .sql source comments for proper formatting!')
                 section += atable
 
         if hasattr(core_text.comments, 'changelog'):
             section += n.line("CHANGE LOG:", "CHANGE LOG:")
             # The first row is treated as table header
-            ctable = self.build_table(
-                core_text.comments.changelog[0], # table header
-                core_text.comments.changelog[1:], # data rows
-            )
+            ctable = ''
+            try:
+                ctable = self.build_table(
+                    core_text.comments.changelog[0], # table header
+                    core_text.comments.changelog[1:], # data rows
+                )
+            except Exception as e:
+                logger.warning(f'Unable to parse change log from {core_text.name}. Check your .sql source comments for proper formatting!')
             section += ctable
 
         return section
