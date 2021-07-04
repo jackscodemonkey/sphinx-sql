@@ -10,19 +10,25 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-#import os
-#import sys
-#sys.path.insert(0, os.path.abspath('../../'))
+import os
+import sys
+import datetime
+
+from sphinx_sql import __version__, __release__
+
+sys.path.insert(0, os.path.abspath('../../'))
+now = datetime.datetime.now()
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'Sphinx-SQL'
-copyright = '2020, Marcus Robb'
+copyright = f'{now.year}, Marcus Robb'
 author = 'Marcus Robb'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1'
+version = __version__
+release = __release__
 
 
 # -- General configuration ---------------------------------------------------

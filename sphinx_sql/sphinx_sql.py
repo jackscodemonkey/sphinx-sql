@@ -89,6 +89,8 @@ class SqlDirective(Directive):
         'col_comment': '(?<=comment on column)\s*(\w*)\.(\w*)\.(\w*)\s*IS.*\'(.*)\';',
         # Match complete Constraint part
         'constraints': '^\s*CONSTRAINT.*\n*.*\),?',
+        # Match create table definition and everything below (strip out anything above ie: pg_dump statements)
+        'table_definition': '(create .*)',
     }
 
     regex_strings = json.loads(json.dumps(
@@ -127,6 +129,8 @@ class SqlDirective(Directive):
     objconstraints = re.compile(regex_strings.constraints,
                                 re.IGNORECASE | re.MULTILINE)
 
+    objtable = re.compile(regex_strings.table_definition, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+
     def get_sql_dir(self, sqlsrc):
         env = Path(self.state.document.settings.env.srcdir)
         path = Path.resolve(Path.joinpath(env, sqlsrc))
@@ -156,6 +160,9 @@ class SqlDirective(Directive):
         '''Extract Table Columns and their metadata
         from DDL code.
         '''
+
+        # Extract just create and everything below (removes pg_dump meta info)
+        contents = self.objtable.search(contents).group()
 
         # Get DDL and clean content for ddlparse
         if len(self.top_comments.findall(contents)) > 0:
