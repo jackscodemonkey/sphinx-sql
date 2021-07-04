@@ -54,7 +54,6 @@ special_obj_type = [
 
 
 class SqlDirective(Directive):
-
     has_content = False
     option_spec = {'sqlsource': directives.unchanged}
 
@@ -191,10 +190,10 @@ class SqlDirective(Directive):
         table = parser.parse()
 
         table_column_comments = self.extract_sql_col_comments(
-                ddl,
-                schema_name,
-                table_name
-                )
+            ddl,
+            schema_name,
+            table_name
+        )
 
         # Define header fields for sphinx-table
         fields = [['Name', 'Type', 'Description']]
@@ -232,7 +231,8 @@ class SqlDirective(Directive):
             object_details = {}
             if self.obj_schema.findall(contents):
                 sql_type_schema = self.obj_schema.findall(contents)[0]
-                sql_type = (f'{sql_type_schema[1]} {sql_type_schema[2]}', sql_type_schema[4], sql_type_schema[5], sql_type_schema[6])
+                sql_type = (f'{sql_type_schema[1]} {sql_type_schema[2]}', sql_type_schema[4], sql_type_schema[5],
+                            sql_type_schema[6])
             elif self.obj_cluster_catalog.findall(contents):
                 sql_type_cluster_catalog = self.obj_cluster_catalog.findall(contents)[0]
                 # Create a tuple matching to length of obj_schema
@@ -252,9 +252,9 @@ class SqlDirective(Directive):
                         if config.sphinxsql_include_table_attributes:
                             try:
                                 object_details['cols'] = self.extract_columns(
-                                        contents,
-                                        sql_type[2],
-                                        sql_type[3])
+                                    contents,
+                                    sql_type[2],
+                                    sql_type[3])
                             except:
                                 # If no columns can be extracted
                                 object_details['cols'] = []
@@ -294,7 +294,7 @@ class SqlDirective(Directive):
     def extract_comments(self, str_comment):
         obj_comment = {}
         if self.objpara.findall(str_comment):
-            #sparam = str(self.objpara.findall(str_comment)[0].strip('[]')).splitlines()
+            # sparam = str(self.objpara.findall(str_comment)[0].strip('[]')).splitlines()
             sparam = self.objpara.findall(str_comment)[0]
             obj_comment['param'] = self.split_to_list(sparam)
         if self.objreturn.findall(str_comment):
@@ -304,11 +304,11 @@ class SqlDirective(Directive):
             obj_comment['purpose'] = str(
                 self.objpurpose.findall(str_comment)[0][0]).strip()
         if self.objdepen.findall(str_comment):
-            #sod = str(self.objdepen.findall(str_comment)[0].strip('[]')).splitlines()
+            # sod = str(self.objdepen.findall(str_comment)[0].strip('[]')).splitlines()
             sod = self.objdepen.findall(str_comment)[0]
             obj_comment['dependancies'] = self.split_to_list(sod)
         if self.objchange.findall(str_comment):
-            #scl = str(self.objchange.findall(str_comment)[0].strip('[]')).splitlines()
+            # scl = str(self.objchange.findall(str_comment)[0].strip('[]')).splitlines()
             scl = self.objchange.findall(str_comment)[0]
             obj_comment['changelog'] = self.split_to_list(scl)
 
@@ -317,9 +317,9 @@ class SqlDirective(Directive):
     def split_to_list(self, source):
         slist = []
         source = ''.join(source)
-        source = [ x.strip() for x in source.splitlines() ]
+        source = [x.strip() for x in source.splitlines()]
         for line in self.non_blank_lines(source):
-            sline = [ x.strip() for x in line.split('|') ]
+            sline = [x.strip() for x in line.split('|')]
             slist.append(sline)
         return slist
 
@@ -349,7 +349,7 @@ class SqlDirective(Directive):
             r = n.row()
             for cidx, cell in enumerate(row):
                 entry = n.entry()
-                if is_dependant and tidx >= 0 and cidx==1:
+                if is_dependant and tidx >= 0 and cidx == 1:
                     para = n.paragraph()
                     entry += para
                     para += n.reference(cell, cell, refuri='#{}'.format(n.make_id(cell)))
@@ -372,12 +372,13 @@ class SqlDirective(Directive):
         return row
 
     def extract_purpose(self, comments):
-            # Purpose block
-            lb = n.literal_block()
-            purpose = self.convert_string_to_markup(comments.purpose)
-            t = n.Text(purpose, purpose)
-            lb += t
-            return lb
+        # Purpose block
+        lb = n.literal_block()
+        lb['language'] = 'none'
+        purpose = self.convert_string_to_markup(comments.purpose)
+        t = n.Text(purpose, purpose)
+        lb += t
+        return lb
 
     def build_docutil_node(self, core_text):
         section = n.section(ids=[n.make_id(core_text.name)])
@@ -390,35 +391,36 @@ class SqlDirective(Directive):
                               "RETURNS: {}".format(core_text.comments.return_type))
 
             if hasattr(core_text, 'language') and len(core_text.language) > 0:
-                section += n.line(core_text.language[0],core_text.language[0])
+                section += n.line(core_text.language[0], core_text.language[0])
 
             # Parameters block
-            section += n.line("","")
-            section += n.line("PARAMETERS:","PARAMETERS:")
+            section += n.line("", "")
+            section += n.line("PARAMETERS:", "PARAMETERS:")
             # The first row is treated as table header
             if len(core_text.comments.param) > 1:
                 ptable = ''
                 try:
                     ptable = self.build_table(
-                        core_text.comments.param[0], # table header
-                        core_text.comments.param[1:], # data rows
+                        core_text.comments.param[0],  # table header
+                        core_text.comments.param[1:],  # data rows
                     )
                     section += ptable
                 except Exception as e:
-                    logger.warning(f'Unable to parse function parameters from {core_text.name}. Check your .sql source comments for proper formatting!')
+                    logger.warning(
+                        f'Unable to parse function parameters from {core_text.name}. Check your .sql source comments for proper formatting!')
             else:
-                section += n.line("None","None")
-                section += n.line("","")
+                section += n.line("None", "None")
+                section += n.line("", "")
 
         if core_text.type in TABLE_TYPES:
             if hasattr(core_text, 'distribution_key') and len(core_text.distribution_key) > 0:
-                section += n.line(core_text.distribution_key[0],core_text.distribution_key[0])
-            if hasattr(core_text, 'partition_key') and len(core_text.partition_key) >0:
-                section += n.line(core_text.partition_key[0],core_text.partition_key[0])
+                section += n.line(core_text.distribution_key[0], core_text.distribution_key[0])
+            if hasattr(core_text, 'partition_key') and len(core_text.partition_key) > 0:
+                section += n.line(core_text.partition_key[0], core_text.partition_key[0])
 
         if hasattr(core_text.comments, 'purpose'):
             # Purpose block
-            section += n.line("","")
+            section += n.line("", "")
             section += n.line("PURPOSE:", "PURPOSE:")
             lb = self.extract_purpose(core_text.comments)
             section += lb
@@ -429,12 +431,13 @@ class SqlDirective(Directive):
             dtable = ''
             try:
                 dtable = self.build_table(
-                    core_text.comments.dependancies[0], # table header
-                    core_text.comments.dependancies[1:], # data rows
+                    core_text.comments.dependancies[0],  # table header
+                    core_text.comments.dependancies[1:],  # data rows
                     True
                 )
             except Exception as e:
-                logger.warning(f'Unable to parse dependant objects from {core_text.name}. Check your .sql source comments for proper formatting!')
+                logger.warning(
+                    f'Unable to parse dependant objects from {core_text.name}. Check your .sql source comments for proper formatting!')
             section += dtable
 
         if core_text.type in TABLE_TYPES:
@@ -445,11 +448,12 @@ class SqlDirective(Directive):
                 # The first row is treated as table header
                 try:
                     atable = self.build_table(
-                        core_text.cols[0], # table header
-                        core_text.cols[1:], # data rows
+                        core_text.cols[0],  # table header
+                        core_text.cols[1:],  # data rows
                     )
                 except Exception as e:
-                    logger.warning(f'Unable to parse table attributes from {core_text.name}. Check your .sql source comments for proper formatting!')
+                    logger.warning(
+                        f'Unable to parse table attributes from {core_text.name}. Check your .sql source comments for proper formatting!')
                 section += atable
 
         if hasattr(core_text.comments, 'changelog'):
@@ -458,11 +462,12 @@ class SqlDirective(Directive):
             ctable = ''
             try:
                 ctable = self.build_table(
-                    core_text.comments.changelog[0], # table header
-                    core_text.comments.changelog[1:], # data rows
+                    core_text.comments.changelog[0],  # table header
+                    core_text.comments.changelog[1:],  # data rows
                 )
             except Exception as e:
-                logger.warning(f'Unable to parse change log from {core_text.name}. Check your .sql source comments for proper formatting!')
+                logger.warning(
+                    f'Unable to parse change log from {core_text.name}. Check your .sql source comments for proper formatting!')
             section += ctable
 
         return section
@@ -489,7 +494,7 @@ class SqlDirective(Directive):
                 doc_cores.append(core)
 
         # Sort docs into SQL object type and alphabetic object name
-        sorted_cores = sorted(doc_cores, key=lambda x: (x.type,x.name))
+        sorted_cores = sorted(doc_cores, key=lambda x: (x.type, x.name))
 
         # Extract docutil nodes into lists of SQL object type
         section_types = defaultdict(list)
@@ -507,6 +512,7 @@ class SqlDirective(Directive):
             # Append to master node list for return
             sections.append(top_section)
         return sections
+
 
 def setup(app):
     app.add_directive("autosql", SqlDirective)
