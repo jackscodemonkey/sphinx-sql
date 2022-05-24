@@ -1,3 +1,4 @@
 ddlparse >= 1.9.0
+pytest
 Sphinx >= 4.0.0b2
 sphinx-rtd-theme >= 0.5.2
