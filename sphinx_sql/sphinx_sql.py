@@ -289,7 +289,7 @@ class SqlDirective(Directive):
                             object_details['comments'] = self.extract_comments(str(dml))
                     else:
                         return None
-            except:
+            except Exception as e:
                 logger.warning(
                     "No top level comments found in file. Not a DML file. Skipping {}".format(file))
                 return None
@@ -301,7 +301,6 @@ class SqlDirective(Directive):
     def extract_comments(self, str_comment):
         obj_comment = {}
         if self.objpara.findall(str_comment):
-            # sparam = str(self.objpara.findall(str_comment)[0].strip('[]')).splitlines()
             sparam = self.objpara.findall(str_comment)[0]
             obj_comment['param'] = self.split_to_list(sparam)
         if self.objreturn.findall(str_comment):
@@ -311,11 +310,9 @@ class SqlDirective(Directive):
             obj_comment['purpose'] = str(
                 self.objpurpose.findall(str_comment)[0][0]).strip()
         if self.objdepen.findall(str_comment):
-            # sod = str(self.objdepen.findall(str_comment)[0].strip('[]')).splitlines()
             sod = self.objdepen.findall(str_comment)[0]
             obj_comment['dependancies'] = self.split_to_list(sod)
         if self.objchange.findall(str_comment):
-            # scl = str(self.objchange.findall(str_comment)[0].strip('[]')).splitlines()
             scl = self.objchange.findall(str_comment)[0]
             obj_comment['changelog'] = self.split_to_list(scl)
 
@@ -340,7 +337,7 @@ class SqlDirective(Directive):
         ns = str(s).replace('\t', '    ')
         return ns
 
-    def build_table(self, titles, tabledata, is_dependant=False):
+    def build_table(self, titles:str, tabledata:str, is_dependant:bool=False):
         table = n.table()
         tgroup = n.tgroup()
         tbody = n.tbody()
@@ -433,19 +430,22 @@ class SqlDirective(Directive):
             section += lb
 
         if hasattr(core_text.comments, 'dependancies'):
-            section += n.line("DEPENDANT OBJECTS:", "DEPENDANT OBJECTS:")
-            # The first row is treated as table header
-            dtable = ''
-            try:
-                dtable = self.build_table(
-                    core_text.comments.dependancies[0],  # table header
-                    core_text.comments.dependancies[1:],  # data rows
-                    True
-                )
-            except Exception as e:
-                logger.warning(
-                    f'Unable to parse dependant objects from {core_text.name}. Check your .sql source comments for proper formatting!')
-            section += dtable
+            # len over 1 means we've found dependant object rows past the header
+            # otherwise ignore the dependancies section even if its included in the comments
+            if len(core_text.comments.dependancies) > 1:
+                section += n.line("DEPENDANT OBJECTS:", "DEPENDANT OBJECTS:")
+                # The first row is treated as table header
+                dtable = ''
+                try:
+                    dtable = self.build_table(
+                        core_text.comments.dependancies[0],  # table header
+                        core_text.comments.dependancies[1:],  # data rows
+                        True
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f'Unable to parse dependant objects from {core_text.name}. Check your .sql source comments for proper formatting!')
+                section += dtable
 
         if core_text.type in TABLE_TYPES:
             if hasattr(core_text, 'cols') and len(core_text.cols) > 0:
