@@ -1,15 +1,12 @@
-from unittest import mock
 import pytest
 from types import SimpleNamespace
-from sphinx.application import Sphinx
 from sphinx_sql.sphinx_sql import SqlDirective
-from docutils.parsers.rst import Directive, directives
 from unittest.mock import patch, mock_open
 
 
 @pytest.fixture
 def table_definition():
-    definition="""
+    definition = """
     /*
     Purpose:
     This a new table to show how auto documentation can add new objects quickly.
@@ -26,9 +23,10 @@ def table_definition():
     """
     return definition
 
+
 @pytest.fixture
 def function_definition():
-    definition="""
+    definition = """
     /*
     Parameters:
     Name | Type | Description
@@ -62,9 +60,10 @@ def function_definition():
     """
     return definition
 
+
 @pytest.fixture
-def function_definition_no_dependants():
-    definition="""
+def function_definition_no_dependents():
+    definition = """
     /*
     Parameters:
     Name | Type | Description
@@ -97,9 +96,10 @@ def function_definition_no_dependants():
     """
     return definition
 
+
 @pytest.fixture
 def view_definition():
-    definition="""
+    definition = """
     /*
     Purpose:
     This a new view to show how auto documentation can add new objects quickly.
@@ -115,9 +115,10 @@ def view_definition():
     """
     return definition
 
+
 @pytest.fixture
 def dml_definition():
-    definition="""
+    definition = """
     /*
     Object Name: my_test_dml
     Object Type: DML
@@ -135,62 +136,75 @@ def dml_definition():
     """
     return definition
 
+
 @pytest.fixture
 def configuration():
-    conf = {'sphinxsql_include_table_attributes' : True}
+    conf = {"sphinxsql_include_table_attributes": True}
     return SimpleNamespace(**conf)
+
+
 def test_view_definitions(view_definition):
     view_text = view_definition
     with patch("builtins.open", mock_open(read_data=view_text)) as mock_file:
         s = SqlDirective(None, None, None, None, None, None, None, None, None)
-        core = s.extract_core_text(config=configuration, file=mock_file )
+        core = s.extract_core_text(config=configuration, file=mock_file)
         section = s.build_docutil_node(core)
-        assert section.children[0].rawsource == 'myschema.myview'
+        assert section.children[0].rawsource == "myschema.myview"
+
 
 def test_function_definitions(function_definition):
     function_text = function_definition
     with patch("builtins.open", mock_open(read_data=function_text)) as mock_file:
         s = SqlDirective(None, None, None, None, None, None, None, None, None)
-        core = s.extract_core_text(config=configuration, file=mock_file )
+        core = s.extract_core_text(config=configuration, file=mock_file)
         section = s.build_docutil_node(core)
-        contains_depenants = [ x for x in section.children if x.rawsource == 'DEPENDANT OBJECTS:' ]
-        assert section.children[0].rawsource == 'schema1.fn_function'
-        assert len(contains_depenants) > 0
+        contains_depenents = [
+            x for x in section.children if x.rawsource == "DEPENDANT OBJECTS:"
+        ]
+        assert section.children[0].rawsource == "schema1.fn_function"
+        assert len(contains_depenents) > 0
 
-def test_function_definitions_no_dependants(function_definition_no_dependants, configuration):
-    function_text = function_definition_no_dependants
+
+def test_function_definitions_no_dependents(
+    function_definition_no_dependents, configuration
+):
+    function_text = function_definition_no_dependents
     with patch("builtins.open", mock_open(read_data=function_text)) as mock_file:
         s = SqlDirective(None, None, None, None, None, None, None, None, None)
-        core = s.extract_core_text(config=configuration, file=mock_file )
+        core = s.extract_core_text(config=configuration, file=mock_file)
         section = s.build_docutil_node(core)
-        contains_depenants = [ x for x in section.children if x.rawsource == 'DEPENDANT OBJECTS:' ]
-        assert section.children[0].rawsource == 'schema1.fn_function'
-        assert len(contains_depenants) == 0
+        contains_dependents = [
+            x for x in section.children if x.rawsource == "DEPENDANT OBJECTS:"
+        ]
+        assert section.children[0].rawsource == "schema1.fn_function"
+        assert len(contains_dependents) == 0
+
 
 def test_dml_definitions(dml_definition):
     dml_text = dml_definition
     with patch("builtins.open", mock_open(read_data=dml_text)) as mock_file:
         s = SqlDirective(None, None, None, None, None, None, None, None, None)
-        core = s.extract_core_text(config=configuration, file=mock_file )
+        core = s.extract_core_text(config=configuration, file=mock_file)
         section = s.build_docutil_node(core)
-        assert section.children[1].rawsource == 'OBJECT TYPE: DML'
+        assert section.children[1].rawsource == "OBJECT TYPE: DML"
 
 
 def test_table_node_colums_on(table_definition, configuration):
     table_text = table_definition
     with patch("builtins.open", mock_open(read_data=table_text)) as mock_file:
         s = SqlDirective(None, None, None, None, None, None, None, None, None)
-        core = s.extract_core_text(config=configuration, file=mock_file )
+        core = s.extract_core_text(config=configuration, file=mock_file)
         section = s.build_docutil_node(core)
-        assert section.children[0].rawsource == 'myschema.mytable'
-        assert section.children[6].rawsource == 'ATTRIBUTES:'
+        assert section.children[0].rawsource == "myschema.mytable"
+        assert section.children[6].rawsource == "ATTRIBUTES:"
+
 
 def test_table_node_colums_off(table_definition, configuration):
     table_text = table_definition
-    configuration.sphinxsql_include_table_attributes=False
+    configuration.sphinxsql_include_table_attributes = False
     with patch("builtins.open", mock_open(read_data=table_text)) as mock_file:
         s = SqlDirective(None, None, None, None, None, None, None, None, None)
-        core = s.extract_core_text(config=configuration, file=mock_file )
+        core = s.extract_core_text(config=configuration, file=mock_file)
         section = s.build_docutil_node(core)
-        assert section.children[0].rawsource == 'myschema.mytable'
-        assert section.children[6].rawsource == 'CHANGE LOG:'
+        assert section.children[0].rawsource == "myschema.mytable"
+        assert section.children[6].rawsource == "CHANGE LOG:"
