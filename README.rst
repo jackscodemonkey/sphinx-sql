@@ -55,8 +55,7 @@ Add the option to toggle including table attributes:
     sphinxsql_include_table_attributes = True
 
 By default, Table Columns with their metadata (data type, length, precision, scale) are extracted from the DDL.
-You can disable this behavior by changing sphinxsql_include_table_attributes = False
- in your conf.py.
+You can disable this behavior by changing sphinxsql_include_table_attributes = False in your conf.py.
 
 
 Configure toctree
