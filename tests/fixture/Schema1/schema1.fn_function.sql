@@ -2,8 +2,7 @@
 
 -- DROP FUNCTION schema1.fn_function_name();
 
-CREATE OR REPLACE FUNCTION schema1.fn_function() RETURNS void
-    AS $BODY$
+
 /*
 Parameters:
 Name | Type | Description
@@ -22,6 +21,8 @@ ChangeLog:
     Date   |     Author      |    Ticket | Modification
 	YYYY-MM-DD |	Developer name |	T-223 | Short Modification details or some really long text that will continue on.
 */
+CREATE OR REPLACE FUNCTION schema1.fn_function() RETURNS void
+    AS $BODY$
 DECLARE
     v_source_rec_cnt BIGINT;
     v_fstart_ts TIMESTAMP;
@@ -29,4 +30,5 @@ DECLARE
     BEGIN
         SELECT 1;
     END;
+    $BODY$
 LANGUAGE pgpgsql;

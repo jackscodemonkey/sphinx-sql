@@ -27,6 +27,7 @@ setup(
     long_description_content_type="text/x-rst",
     install_requires=[
         'ddlparse',
+        'pytest',
         'sphinx',
         'sphinx_rtd_theme'
     ],
