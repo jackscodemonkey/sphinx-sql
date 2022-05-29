@@ -11,14 +11,26 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import re
 import sys
 import datetime
 
-from sphinx_sql import __version__, __release__
 
 sys.path.insert(0, os.path.abspath('../../'))
 now = datetime.datetime.now()
 
+VERSIONFILE="../../sphinx_sql/__init__.py"
+
+with open(VERSIONFILE, "rt") as f:
+        line = f.read()
+        VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
+        RELRE = VSRE = r"^__release__ = ['\"]([^'\"]*)['\"]"
+        ver = re.search(VSRE, line, re.M)
+        rel = re.search(RELRE, line, re.M)
+        if ver:
+            __version__ = ver.group(1)
+        if rel:
+            __release__ = rel.group(1)
 
 # -- Project information -----------------------------------------------------
 

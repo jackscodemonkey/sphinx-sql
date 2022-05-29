@@ -6,10 +6,10 @@ Change Log
 +-----------------------+-------------------------------------------------------------------------------------------------------------+
 | 2022-05-24            | Ignore empty Dependant Objects. Add tests and cleaned up some PEP8 formatting.                              |
 +-----------------------+-------------------------------------------------------------------------------------------------------------+
-| 2021-05-25            | Handle function attributes when they are missing or malformed. Post warning and keep processing.             |
+| 2021-05-25            | Handle function attributes when they are missing or malformed. Post warning and keep processing.            |
 +-----------------------+-------------------------------------------------------------------------------------------------------------+
 | 2021-05-25            | Support more objects from DDL, extract table columns (incl. metadata), some additional minor modifications. |
 +-----------------------+-------------------------------------------------------------------------------------------------------------+
-| 2020-10-28            | Initial Release                                                                                              |
+| 2020-10-28            | Initial Release                                                                                             |
 +-----------------------+-------------------------------------------------------------------------------------------------------------+
 
