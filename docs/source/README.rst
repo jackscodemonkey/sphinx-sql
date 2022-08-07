@@ -149,7 +149,6 @@ Add SQL Comments
 	    YYYY-MM-DD |	Developer name |	T-223 | Short Modification details or some really long text that will continue on.
     */
 
-
 **TABLES/VIEWS/etc:**
 
 You can comment on Table Columns (one-line text, no markups) in your DDL (``COMMENT ON COLUMN``).

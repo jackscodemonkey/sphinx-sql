@@ -127,6 +127,28 @@ Add SQL Comments
 	    YYYY-MM-DD |	Developer name |	T-223 | Short Modification details or some really long text that will continue on.
     */
 
+**PROCEDURES:**
+
+.. code-block:: SQL
+
+   /*
+    Parameters:
+    Name | Type | Description
+
+    Purpose:
+    Detailed explanation of the procedure which includes:
+            - Procedure business logic
+            - Transformation rules
+            - Here is a bit more text.
+    Dependent Objects:
+        Type    |Name
+        Table   |schema_name.source_table5
+        View    |schema_name.target_table6
+    ChangeLog:
+        Date   |     Author      |    Ticket | Modification
+	    YYYY-MM-DD |	Developer name |	T-223 | Short Modification details or some really long text that will continue on.
+    */
+
 **TABLES/VIEWS/etc:**
 
 You can comment on Table Columns (one-line text, no markups) in your DDL (``COMMENT ON COLUMN``).
