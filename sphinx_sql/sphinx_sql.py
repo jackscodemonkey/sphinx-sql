@@ -286,7 +286,7 @@ class SqlDirective(Directive):
                                 # If no columns can be extracted
                                 object_details["cols"] = []
 
-                    elif object_details["type"] == "FUNCTION":
+                    elif object_details["type"] in {"FUNCTION", "PROCEDURE"}:
                         lang = self.objlang.findall(contents)
                         object_details["language"] = lang
 
@@ -425,11 +425,12 @@ class SqlDirective(Directive):
             "OBJECT TYPE: {}".format(core_text.type),
         )
 
-        if core_text.type == "FUNCTION":
-            section += n.line(
-                "RETURNS: {}".format(core_text.comments.return_type),
-                "RETURNS: {}".format(core_text.comments.return_type),
-            )
+        if core_text.type in {"FUNCTION", "PROCEDURE"}:
+            if core_text.type == "FUNCTION":
+                section += n.line(
+                    "RETURNS: {}".format(core_text.comments.return_type),
+                    "RETURNS: {}".format(core_text.comments.return_type),
+                )
 
             if hasattr(core_text, "language") and len(core_text.language) > 0:
                 section += n.line(core_text.language[0], core_text.language[0])
