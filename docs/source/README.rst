@@ -3,7 +3,7 @@ Introduction
 
 sphinx-sql is a Sphinx documentation extension for building documentation from SQL source files.
 
-| * Do you live in a bottomless pit of despair with "Living documents" in Sharepoint.
+| * Do you live in a bottomless pit of despair with "living documents" in Sharepoint.
 | * Have you had to troubleshoot a problem and someone has reorganized the documentation tree in Sharepoint?
 | * Has your company let PMs loose on projects with no idea how to version documentation, so now you have copies of entire doc trees in Sharepoint?
 |

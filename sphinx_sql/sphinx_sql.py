@@ -49,7 +49,7 @@ class SqlDirective(Directive):
     has_content = False
     option_spec = {"sqlsource": directives.unchanged}
 
-    # Most of these regex strings should be case insensitive lookups
+    # Most of these regex strings should be case-insensitive lookups
     closing_regex = (
         r"((?=return:)|(?=purpose:)|(?=dependent objects:)|"
         r"(?=changelog:)|(?=parameters)|(?=\*/))"
@@ -65,7 +65,7 @@ class SqlDirective(Directive):
         # Match Group 2 (a defined special object type, e.g. "materialized")
         # and Group 3 for Object Type, Group 5 for Object Name
         # in schema objects (e.g. table, view, function)
-        "object_schema": rf"(?<=create)\s*(or replace)?\s*("
+        "object_schema": rf"(?:(?<=create)|(?<=alter))\s*(or replace|or alter)?\s*("
         rf"{'|'.join(special_obj_type)}"
         rf")?\s*(\w+)\s*(if not exists)*\s?((\w*)\.(\"?[^\s*\(]*\"?))",
         # Match Group 2 for distribution key, comma separated for multiple keys
@@ -268,6 +268,9 @@ class SqlDirective(Directive):
                     # DDL file
                     # Read name and type from ANSI92 SQL objects first
                     object_details["type"] = str(sql_type[0]).upper().strip()
+                    if object_details["type"] == "PROC":
+                        object_details["type"] = "PROCEDURE"
+
                     object_details["name"] = (
                         str(sql_type[1]).lower().strip().replace('"', "")
                     )
